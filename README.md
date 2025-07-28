@@ -88,6 +88,10 @@ python main.py
 
 ## 🛠️ Possibilidades futuras
 
-- Exportação para banco de dados (SQLite/PostgreSQL).
-- Análise e dashboards via Jupyter.
-- Suporte a múltiplas unidades gestoras.
+- Exportação para banco de dados (SQLite/PostgreSQL)
+- Análise e dashboards via Jupyter
+- Suporte a múltiplas unidades gestoras
+
+## ❓ Problemas comuns
+
+Se o script falhar com erros de conexão (como `NameResolutionError`), verifique se sua rede consegue resolver o domínio `portaldatransparencia.tce.pb.gov.br`. Em ambientes restritos, você pode precisar configurar um proxy ou executar o coletor em uma rede com acesso liberado.

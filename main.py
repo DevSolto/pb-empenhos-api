@@ -3,9 +3,26 @@ import os
 from typing import List
 
 import requests
+from requests.adapters import HTTPAdapter
 from tqdm import tqdm
+from urllib3.util.retry import Retry
 
 import config
+
+
+def create_session() -> requests.Session:
+    """Cria uma sessão HTTP com política básica de retries."""
+    session = requests.Session()
+    retries = Retry(
+        total=3,
+        backoff_factor=1,
+        status_forcelist=[500, 502, 503, 504],
+        allowed_methods=["GET"],
+    )
+    adapter = HTTPAdapter(max_retries=retries)
+    session.mount("https://", adapter)
+    session.mount("http://", adapter)
+    return session
 
 
 def fetch_empenhos_mes(ano: int, mes: int, unidade_gestora: str, session: requests.Session) -> List[dict]:
@@ -21,9 +38,13 @@ def fetch_empenhos_mes(ano: int, mes: int, unidade_gestora: str, session: reques
             "size": config.PAGE_SIZE,
             "ano_mes": ano_mes,
         }
-        resp = session.get(config.BASE_URL, params=params, timeout=30)
-        resp.raise_for_status()
-        dados = resp.json()
+        try:
+            resp = session.get(config.BASE_URL, params=params, timeout=30)
+            resp.raise_for_status()
+            dados = resp.json()
+        except requests.exceptions.RequestException as e:
+            print(f"Erro de conexão ao buscar {ano_mes} página {page}: {e}")
+            break
 
         # Tentamos suportar diferentes formatos de retorno
         itens = dados.get("content") or dados.get("data") or dados
@@ -41,7 +62,7 @@ def fetch_empenhos_mes(ano: int, mes: int, unidade_gestora: str, session: reques
 
 def coletar_empenhos_ano():
     os.makedirs(config.OUTPUT_DIR, exist_ok=True)
-    session = requests.Session()
+    session = create_session()
     todos: List[dict] = []
 
     for mes in tqdm(range(1, 13), desc="Meses"):
