@@ -27,7 +27,7 @@ Coletar todos os empenhos emitidos por uma unidade gestora em um período (ex: j
 - Bibliotecas:
 
 ```bash
-pip install requests pandas tqdm
+pip install -r requirements.txt
 ```
 
 ---
@@ -40,14 +40,18 @@ git clone https://github.com/seu-usuario/sagres-crawler
 cd sagres-crawler
 ```
 
-2. Configure os parâmetros no arquivo `config.py`:
-```python
-UNIDADE_GESTORA = "201157"
-DATA_INICIAL = "202501"  # AAAAMM
-DATA_FINAL = "202503"
+2. Instale as dependências:
+```bash
+pip install -r requirements.txt
 ```
 
-3. Execute:
+3. Configure os parâmetros no arquivo `config.py`:
+```python
+UNIDADE_GESTORA = "201157"
+ANO = 2025
+```
+
+4. Execute:
 ```bash
 python main.py
 ```
