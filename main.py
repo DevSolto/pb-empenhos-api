@@ -1,81 +1,67 @@
+import pyautogui
+import pyperclip
+import time
 import json
 import os
-from typing import List
 
-import requests
-from requests.adapters import HTTPAdapter
-from tqdm import tqdm
-from urllib3.util.retry import Retry
+# Configurações
+ANO = 2024
+UNIDADE_GESTORA = "201157"
+PAGE_SIZE = 50
+OUTPUT_DIR = "201157-saida_manual_navegador"
+DELAY_ABA = 4
+DELAY_ENTRE_ITERACOES = 3
 
-import config
+os.makedirs(OUTPUT_DIR, exist_ok=True)
 
-
-def create_session() -> requests.Session:
-    """Cria uma sessão HTTP com política básica de retries."""
-    session = requests.Session()
-    retries = Retry(
-        total=3,
-        backoff_factor=1,
-        status_forcelist=[500, 502, 503, 504],
-        allowed_methods=["GET"],
-    )
-    adapter = HTTPAdapter(max_retries=retries)
-    session.mount("https://", adapter)
-    session.mount("http://", adapter)
-    return session
-
-
-def fetch_empenhos_mes(ano: int, mes: int, unidade_gestora: str, session: requests.Session) -> List[dict]:
-    """Coleta lista de empenhos para um mes especifico."""
+def montar_url(ano, mes, page, ug, size):
     ano_mes = f"{ano}{mes:02d}"
-    page = 0
-    resultados: List[dict] = []
+    return f"https://sagrescidadao.tce.pb.gov.br/api/municipal/despesas/funcoes/empenhos?unidades_gestoras={ug}&page={page}&size={size}&ano_mes={ano_mes}"
 
+def abrir_url_no_navegador(url):
+    pyautogui.hotkey("ctrl", "t")
+    time.sleep(1)
+    pyperclip.copy(url)
+    pyautogui.hotkey("ctrl", "v")
+    time.sleep(1)
+    pyautogui.press("enter")
+    time.sleep(DELAY_ABA)
+
+def copiar_conteudo_pagina():
+    pyautogui.hotkey("ctrl", "a")
+    time.sleep(0.5)
+    pyautogui.hotkey("ctrl", "c")
+    time.sleep(1)
+    return pyperclip.paste()
+
+def fechar_aba():
+    pyautogui.hotkey("ctrl", "w")
+    time.sleep(0.5)
+
+# Execução
+for mes in range(12, 13):  # ajuste aqui se quiser só o mês 6, por exemplo: range(6, 7)
+    pagina = 1
+    time.sleep(DELAY_ENTRE_ITERACOES)
     while True:
-        params = {
-            "unidades_gestoras": unidade_gestora,
-            "page": page,
-            "size": config.PAGE_SIZE,
-            "ano_mes": ano_mes,
-        }
+        url = montar_url(ANO, mes, pagina, UNIDADE_GESTORA, PAGE_SIZE)
+        print(f"Abrindo: {url}")
+        abrir_url_no_navegador(url)
+
+        conteudo = copiar_conteudo_pagina()
+        fechar_aba()
+
         try:
-            resp = session.get(config.BASE_URL, params=params, timeout=30)
-            resp.raise_for_status()
-            dados = resp.json()
-        except requests.exceptions.RequestException as e:
-            print(f"Erro de conexão ao buscar {ano_mes} página {page}: {e}")
+            dados = json.loads(conteudo)
+            empenhos = dados.get("_embedded", {}).get("empenhos", [])
+            if dados.get("count", 0) == 0 or not empenhos:
+                print(f"Fim dos dados para {mes:02d}")
+                break
+        except Exception as e:
+            print(f"Erro ao interpretar JSON: {e}")
             break
 
-        # Tentamos suportar diferentes formatos de retorno
-        itens = dados.get("content") or dados.get("data") or dados
-        if not itens:
-            break
-        resultados.extend(itens)
-
-        # Verifica se existe próxima página
-        if dados.get("last") or len(itens) < config.PAGE_SIZE:
-            break
-        page += 1
-
-    return resultados
-
-
-def coletar_empenhos_ano():
-    os.makedirs(config.OUTPUT_DIR, exist_ok=True)
-    session = create_session()
-    todos: List[dict] = []
-
-    for mes in tqdm(range(1, 13), desc="Meses"):
-        itens = fetch_empenhos_mes(config.ANO, mes, config.UNIDADE_GESTORA, session)
-        todos.extend(itens)
-
-    caminho = os.path.join(config.OUTPUT_DIR, f"empenhos_{config.ANO}.json")
-    with open(caminho, "w", encoding="utf-8") as f:
-        json.dump(todos, f, ensure_ascii=False, indent=2)
-
-    print(f"Total de empenhos coletados: {len(todos)}")
-    print(f"Arquivo salvo em: {caminho}")
-
-
-if __name__ == "__main__":
-    coletar_empenhos_ano()
+        filename = f"{OUTPUT_DIR}/empenhos_{ANO}{mes:02d}_p{pagina}.json"
+        with open(filename, "w", encoding="utf-8") as f:
+            f.write(conteudo)
+        print(f"Salvo: {filename}")
+        pagina += 1
